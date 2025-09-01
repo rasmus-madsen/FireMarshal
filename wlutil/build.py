@@ -342,13 +342,34 @@ def buildDepGraph(cfgs):
     return loader
 
 
-def buildWorkload(cfgName, cfgs, buildBin=True, buildImg=True):
+def buildWorkload(cfgName, cfgs, buildBin=True, buildImg=True, lspOnly=False):
     # This should only be built once (multiple builds will mess up doit)
     global taskLoader
     if taskLoader is None:
         taskLoader = buildDepGraph(cfgs)
 
     config = cfgs[cfgName]
+
+    if lspOnly:
+        # For LSP mode, we only need to generate compile_commands.json
+        if 'linux' not in config:
+            print("Warning: No Linux configuration found for LSP generation")
+            return 0
+
+        # Create a simple task for LSP generation using the existing build system
+        lspTask = {
+            'name': f"lsp-{cfgName}",
+            'actions': [(makeBin, [config], {'lspOnly': True})],
+            'targets': [str(config['out-dir'] / 'compile_commands.json')],
+            'file_dep': config['linux']['config'] if isinstance(config['linux']['config'], list) else [config['linux']['config']],
+            'task_dep': []
+        }
+
+        # Add the LSP task to the loader
+        taskLoader.addTask(lspTask)
+
+        doitHandle = doit.doit_cmd.DoitMain(taskLoader)
+        return doitHandle.run([str(config['out-dir'] / 'compile_commands.json')])
 
     imgList = []
     binList = []
@@ -520,7 +541,7 @@ def makeOpenSBI(config, nodisk=False):
     return config['firmware']['source'] / 'build' / 'platform' / 'generic' / 'firmware' / 'fw_payload.elf'
 
 
-def makeBin(config, nodisk=False):
+def makeBin(config, nodisk=False, lspOnly=False):
     """Build the binary specified in 'config'.
 
     This is called as a doit task (see buildDepGraph() and addDep())
@@ -561,23 +582,36 @@ def makeBin(config, nodisk=False):
             initramfsIncludes += [wlutil.getOpt('initramfs-dir') / "disk"]
             initramfsPath = makeInitramfs(initramfsIncludes, cpioDir, includeDevNodes=True)
 
-        makeInitramfsKfrag(initramfsPath, cpioDir / "initramfs.kfrag")
-        generateKConfig(config['linux']['config'] + [cpioDir / "initramfs.kfrag"], config['linux']['source'])
-        wlutil.run(['make'] + wlutil.getOpt('linux-make-args') + ['vmlinux', 'Image', '-j' + str(wlutil.getOpt('jlevel'))], cwd=config['linux']['source'])
-        # copy files needed to build linux (busybox copying is put here so that it is shown per linux build)
-        shutil.copy(config['linux']['source'] / '.config', config['out-dir'] / 'linux_config')
-        shutil.copy(wlutil.getOpt('busybox-dir') / '.config', config['out-dir'] / 'busybox_config')
+        if lspOnly:
+            # For LSP mode, just generate compile_commands.json
+            generateKConfig(config['linux']['config'], config['linux']['source'])
+            wlutil.run(['make'] + wlutil.getOpt('linux-make-args') + ['compile_commands.json'],
+                       cwd=config['linux']['source'])
 
-        fw = makeOpenSBI(config, nodisk)
-
-        config['bin'].parent.mkdir(parents=True, exist_ok=True)
-        config['dwarf'].parent.mkdir(parents=True, exist_ok=True)
-        if nodisk:
-            shutil.copy(fw, wlutil.noDiskPath(config['bin']))
-            shutil.copy(config['linux']['source'] / 'vmlinux', wlutil.noDiskPath(config['dwarf']))
+            # Copy the generated compile_commands.json to the output directory
+            shutil.copy(config['linux']['source'] / 'compile_commands.json',
+                        config['out-dir'] / 'compile_commands.json')
+            shutil.copy(config['linux']['source'] / '.config',
+                        config['out-dir'] / 'linux_config')
         else:
-            shutil.copy(fw, config['bin'])
-            shutil.copy(config['linux']['source'] / 'vmlinux', config['dwarf'])
+            # Normal build process
+            makeInitramfsKfrag(initramfsPath, cpioDir / "initramfs.kfrag")
+            generateKConfig(config['linux']['config'] + [cpioDir / "initramfs.kfrag"], config['linux']['source'])
+            wlutil.run(['make'] + wlutil.getOpt('linux-make-args') + ['vmlinux', 'Image', '-j' + str(wlutil.getOpt('jlevel'))], cwd=config['linux']['source'])
+            # copy files needed to build linux (busybox copying is put here so that it is shown per linux build)
+            shutil.copy(config['linux']['source'] / '.config', config['out-dir'] / 'linux_config')
+            shutil.copy(wlutil.getOpt('busybox-dir') / '.config', config['out-dir'] / 'busybox_config')
+
+            fw = makeOpenSBI(config, nodisk)
+
+            config['bin'].parent.mkdir(parents=True, exist_ok=True)
+            config['dwarf'].parent.mkdir(parents=True, exist_ok=True)
+            if nodisk:
+                shutil.copy(fw, wlutil.noDiskPath(config['bin']))
+                shutil.copy(config['linux']['source'] / 'vmlinux', wlutil.noDiskPath(config['dwarf']))
+            else:
+                shutil.copy(fw, config['bin'])
+                shutil.copy(config['linux']['source'] / 'vmlinux', config['dwarf'])
 
     return True
 

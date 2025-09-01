@@ -34,6 +34,7 @@ def main():
     build_parser.add_argument('config_files', nargs='+', help="Configuration file(s) to use.")
     build_parser.add_argument('-B', '--binOnly', action='store_true', help="Only build the binary")
     build_parser.add_argument('-I', '--imgOnly', action='store_true', help="Only build the image (may require an image if you have guest-init scripts)")
+    build_parser.add_argument('--lspOnly', action='store_true', help="Generate compile_commands.json for LSP support instead of building kernel")
     build_parser.add_argument('-s', '--spike', action='store_true', help=argparse.SUPPRESS)
 
     # Launch command
@@ -148,7 +149,9 @@ def main():
                     j['nodisk'] = True
 
         if args.command == "build":
-            if args.binOnly or args.imgOnly:
+            if args.lspOnly:
+                ret = wlutil.buildWorkload(cfgName, cfgs, lspOnly=True)
+            elif args.binOnly or args.imgOnly:
                 # It's fine if they pass -IB, it just builds both
                 ret = wlutil.buildWorkload(cfgName, cfgs, buildBin=args.binOnly, buildImg=args.imgOnly)
             else:
