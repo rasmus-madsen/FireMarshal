@@ -355,7 +355,7 @@ def buildWorkload(cfgName, cfgs, buildBin=True, buildImg=True, lspOnly=False):
         if 'linux' not in config:
             print("Warning: No Linux configuration found for LSP generation")
             return 0
-            
+
         # Create a simple task for LSP generation using the existing build system
         lspTask = {
             'name': f"lsp-{cfgName}",
@@ -364,10 +364,10 @@ def buildWorkload(cfgName, cfgs, buildBin=True, buildImg=True, lspOnly=False):
             'file_dep': config['linux']['config'] if isinstance(config['linux']['config'], list) else [config['linux']['config']],
             'task_dep': []
         }
-        
+
         # Add the LSP task to the loader
         taskLoader.addTask(lspTask)
-        
+
         doitHandle = doit.doit_cmd.DoitMain(taskLoader)
         return doitHandle.run([str(config['out-dir'] / 'compile_commands.json')])
 
@@ -541,9 +541,6 @@ def makeOpenSBI(config, nodisk=False):
     return config['firmware']['source'] / 'build' / 'platform' / 'generic' / 'firmware' / 'fw_payload.elf'
 
 
-
-
-
 def makeBin(config, nodisk=False, lspOnly=False):
     """Build the binary specified in 'config'.
 
@@ -588,13 +585,13 @@ def makeBin(config, nodisk=False, lspOnly=False):
         if lspOnly:
             # For LSP mode, just generate compile_commands.json
             generateKConfig(config['linux']['config'], config['linux']['source'])
-            wlutil.run(['make'] + wlutil.getOpt('linux-make-args') + ['compile_commands.json'], 
+            wlutil.run(['make'] + wlutil.getOpt('linux-make-args') + ['compile_commands.json'],
                        cwd=config['linux']['source'])
-            
+
             # Copy the generated compile_commands.json to the output directory
-            shutil.copy(config['linux']['source'] / 'compile_commands.json', 
+            shutil.copy(config['linux']['source'] / 'compile_commands.json',
                         config['out-dir'] / 'compile_commands.json')
-            shutil.copy(config['linux']['source'] / '.config', 
+            shutil.copy(config['linux']['source'] / '.config',
                         config['out-dir'] / 'linux_config')
         else:
             # Normal build process
