@@ -593,6 +593,14 @@ def mountImg(imgPath, mntPath):
     global sudoCmd
     global pwdlessSudoCmd
 
+    # Check if we're in Docker build mode and skip mounting if so
+    build_mode = os.environ.get('FIREMARSHAL_BUILD_MODE', '').lower()
+    if build_mode == 'docker':
+        log = logging.getLogger()
+        log.info(f"Skipping mount of {imgPath} due to FIREMARSHAL_BUILD_MODE=docker")
+        yield mntPath
+        return
+
     assert imgPath.is_file(), f"Unable to find {imgPath} to mount"
     ret = run(["mountpoint", mntPath], check=False).returncode
     # mountpoint on Ubuntu 20.* returns 1 (on 22.* it returns 32) for an empty folder
