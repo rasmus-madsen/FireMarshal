@@ -266,7 +266,7 @@ class Builder:
             # # to the unit tests and anyone who builds a custom buildroot.
             wlutil.run(['rm', '-rf', 'overlay/*'], cwd=br_dir, env=env)
             wlutil.run(['rm', '-rf', "buildroot/output/target/*"], cwd=br_dir, env=env)
-            wlutil.run(['find', 'buildroot/output/', '-name', '".stamp_target_installed"', '-delete'], cwd=br_dir, env=env)
+            wlutil.run(['find', 'buildroot/output/', '-name', '.stamp_target_installed', '-delete'], cwd=br_dir, env=env, check=False)
 
             wlutil.run(['make'], cwd=br_dir / "buildroot", env=env)
 
