@@ -575,6 +575,8 @@ pwdlessSudoCmd = []  # set if pwdless sudo is enabled
 
 def runnableWithSudo(cmd):
     global sudoCmd
+    if not os.path.exists(sudoCmd[0]):
+        return False
     return sp.run(sudoCmd + ['-ln', cmd], stderr=sp.DEVNULL, stdout=sp.DEVNULL).returncode == 0
 
 
@@ -609,7 +611,16 @@ def mountImg(imgPath, mntPath):
     uid = sp.run(['id', '-u'], capture_output=True, text=True).stdout.strip()
     gid = sp.run(['id', '-g'], capture_output=True, text=True).stdout.strip()
 
-    if pwdlessSudoCmd:
+    is_root = hasattr(os, 'geteuid') and os.geteuid() == 0
+
+    if is_root:
+        run(["mount", "-o", "loop", imgPath, mntPath])
+        run(["chown", "-R", f"{uid}:{gid}", mntPath])
+        try:
+            yield mntPath
+        finally:
+            run_with_retries(["umount", mntPath])
+    elif pwdlessSudoCmd:
         # use faster mount without firesim script since we have pwdless sudo
         run(pwdlessSudoCmd + ["mount", "-o", "loop", imgPath, mntPath])
         run(pwdlessSudoCmd + ["chown", "-R", f"{uid}:{gid}", mntPath])
